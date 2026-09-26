@@ -49,5 +49,4 @@ graph TD
     UI -->|Offline Action| MQ
     MQ -->|Background Sync on Reconnect| API
     UI <===>|HTTP REST API + JWT| API
-    API <-->|Database Queries| DB
-```
+    API <---> DB
