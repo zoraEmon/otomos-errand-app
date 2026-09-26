@@ -32,6 +32,7 @@ graph TD
         VS[VS Code Editor]
         CLI[Android CLI Tools / Gradle CLI]
         ADB[ADB USB Deployment]
+        DEVICE["Mobile Device (Capacitor Native Shell)"]
     end
 
     subgraph "Backend Server App"
@@ -42,10 +43,11 @@ graph TD
 
     VS -->|Build Assets| UI
     CLI -->|Assemble APK| ADB
-    ADB -->|Deploy Native Shell| "Mobile Device (Capacitor Native Shell)"
+    ADB -->|Deploy Native Shell| DEVICE
 
     UI <-->|Cache / State| LS
     UI -->|Offline Action| MQ
     MQ -->|Background Sync on Reconnect| API
     UI <===>|HTTP REST API + JWT| API
-    API <---> DB
+    API <-->|Database Queries| DB
+```
