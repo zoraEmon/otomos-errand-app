@@ -50,3 +50,4 @@ graph TD
     MQ -->|Background Sync on Reconnect| API
     UI <===>|HTTP REST API + JWT| API
     API <---> DB
+```
