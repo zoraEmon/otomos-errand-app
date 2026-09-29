@@ -1,0 +1,57 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id           String       @id @default(uuid())
+  username     String       @unique
+  code7        String       @unique
+  passwordHash String
+  createdAt    DateTime     @default(now())
+
+  // Relations
+  connectionsA Connection[] @relation("UserA")
+  connectionsB Connection[] @relation("UserB")
+  errandsCmd   Errand[]     @relation("Commander")
+  errandsRun   Errand[]     @relation("Runner")
+}
+
+model Connection {
+  id        String   @id @default(uuid())
+  userAId   String
+  userBId   String
+  status    String   @default("pending")
+  createdAt DateTime @default(now())
+
+  userA     User     @relation("UserA", fields: [userAId], references: [id])
+  userB     User     @relation("UserB", fields: [userBId], references: [id])
+
+  @@unique([userAId, userBId])
+}
+
+model Errand {
+  id          String       @id @default(uuid())
+  commanderId String
+  runnerId    String
+  status      String       @default("pending_acceptance")
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  commander   User         @relation("Commander", fields: [commanderId], references: [id])
+  runner      User         @relation("Runner", fields: [runnerId], references: [id])
+  items       ErrandItem[]
+}
+
+model ErrandItem {
+  id        String  @id @default(uuid())
+  errandId  String
+  itemName  String
+  quantity  Int     @default(1)
+  isBought  Boolean @default(false)
+
+  errand    Errand  @relation(fields: [errandId], references: [id], onDelete: Cascade)
+}
