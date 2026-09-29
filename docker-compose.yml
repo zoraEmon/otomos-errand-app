@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  otomos-api:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    container_name: otomos_backend
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - DATABASE_URL=file:./dev.db
+      - JWT_SECRET=otomos_dev_secret_key_2026
+    volumes:
+      # Persist SQLite data across container restarts
+      - ./server/dev.db:/usr/src/app/server/dev.db
+      # Optional: Mount src directories for live-reloading with tsx
+      - ./server/src:/usr/src/app/server/src
+      - ./shared/contracts:/usr/src/app/shared/contracts

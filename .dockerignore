@@ -1,0 +1,8 @@
+node_modules
+server/node_modules
+shared/node_modules
+server/dev.db
+server/dev.db-journal
+dist
+npm-debug.log
+.env
