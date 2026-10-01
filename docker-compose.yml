@@ -7,7 +7,7 @@ services:
       dockerfile: server/Dockerfile
     container_name: otomos_backend
     ports:
-      - "3000:3000"
+      - "3001:3000"
     environment:
       - PORT=3000
       - DATABASE_URL=file:./dev.db
