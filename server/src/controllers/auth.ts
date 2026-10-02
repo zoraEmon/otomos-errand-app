@@ -1,11 +1,11 @@
 // server/src/controllers/auth.ts
 
 import { Request, Response } from 'express';
-import { PrismaClient, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { generateCode7 } from '../../../shared/contracts/code7';
+import prisma from '../prisma/client';
 // import { hashPassword, generateToken } from '../utils/auth'; 
 
-const prisma = new PrismaClient();
 const MAX_CODE_RETRIES = 5;
 
 export const signup = async (req: Request, res: Response) => {
@@ -26,7 +26,7 @@ export const signup = async (req: Request, res: Response) => {
         createdUser = await prisma.user.create({
           data: {
             username,
-            password: 'hashedPasswordPlaceholder', 
+            passwordHash: 'hashedPasswordPlaceholder',
             code7: candidateCode,
           },
         });
