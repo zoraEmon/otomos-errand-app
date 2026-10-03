@@ -13,7 +13,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# OS generated files
+# OS generated filesa
 .DS_Store
 Thumbs.db
 

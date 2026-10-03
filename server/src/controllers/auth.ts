@@ -2,18 +2,27 @@
 
 import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
+import { SignupSchema } from '../../../shared/contracts/auth.contract';
 import { generateCode7 } from '../../../shared/contracts/code7';
 import prisma from '../prisma/client';
-// import { hashPassword, generateToken } from '../utils/auth'; 
 
 const MAX_CODE_RETRIES = 5;
+const BCRYPT_ROUNDS = 12;
 
 export const signup = async (req: Request, res: Response) => {
   try {
-    const { username, password } = req.body;
+    const parsedInput = SignupSchema.safeParse(req.body);
+    if (!parsedInput.success) {
+      return res.status(400).json({
+        error: 'Invalid signup payload.',
+        details: parsedInput.error.flatten().fieldErrors,
+      });
+    }
 
-    // Validate inputs here...
-    // const hashedPassword = await hashPassword(password);
+    const { username, password } = parsedInput.data;
+    const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS);
 
     let createdUser = null;
     let attempts = 0;
@@ -26,24 +35,19 @@ export const signup = async (req: Request, res: Response) => {
         createdUser = await prisma.user.create({
           data: {
             username,
-            passwordHash: 'hashedPasswordPlaceholder',
+            passwordHash: hashedPassword,
             code7: candidateCode,
           },
         });
-        
-        // Break the loop if creation is successful
         break; 
-        
       } catch (error) {
         if (error instanceof Prisma.PrismaClientKnownRequestError) {
-          // P2002: Unique constraint failed
-          const target = error.meta?.target as string[];
-          if (error.code === 'P2002' && target?.includes('code7')) {
+          const target = error.meta?.target;
+          if (error.code === 'P2002' && Array.isArray(target) && target.includes('code7')) {
             attempts++;
-            continue; // Retry with a new code
+            continue;
           }
         }
-        // If it's a different error (e.g., username taken), throw it to the outer catch
         throw error; 
       }
     }
@@ -54,17 +58,24 @@ export const signup = async (req: Request, res: Response) => {
       });
     }
 
-    // Generate authentication token
-    // const token = generateToken(createdUser.id);
-    const token = 'example-jwt-token-123';
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      throw new Error('JWT_SECRET is not configured.');
+    }
 
-    // Payload Contract
+    const token = `Bearer ${jwt.sign(
+      { username: createdUser.username },
+      jwtSecret,
+      { subject: createdUser.id, expiresIn: '7d' },
+    )}`;
+
     return res.status(201).json({
       token,
       user: {
         id: createdUser.id,
         username: createdUser.username,
         code7: createdUser.code7,
+        createdAt: createdUser.createdAt.toISOString(),
       },
     });
 

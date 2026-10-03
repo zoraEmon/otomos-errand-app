@@ -13,14 +13,18 @@
     "@otomos/shared": "file:../shared",
     "@prisma/adapter-better-sqlite3": "^7.10.0",
     "@prisma/client": "^7.10.0",
+    "bcrypt": "^6.0.0",
     "better-sqlite3": "^13.0.3",
     "cors": "^2.8.6",
     "dotenv": "^18.0.4",
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3"
   },
   "devDependencies": {
+    "@types/bcrypt": "^6.0.0",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^26.6.3",
     "@types/supertest": "^7.2.1",
     "prisma": "7.10.0",
@@ -34,6 +38,7 @@
     "prisma@7.10.0": true,
     "esbuild@0.28.2": true,
     "better-sqlite3@13.0.3": true,
-    "better-sqlite3@12.11.1": true
+    "better-sqlite3@12.11.1": true,
+    "bcrypt@6.0.0": true
   }
 }
