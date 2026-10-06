@@ -13,6 +13,7 @@ vi.mock('../prisma/client', () => ({
   default: {
     user: {
       create: vi.fn(),
+      findUnique: vi.fn(),
     },
   },
 }));
@@ -137,5 +138,81 @@ describe('POST /api/auth/signup Integration', () => {
     // Ensure the loop tried the correct number of times (e.g., 1 initial + 5 retries = 6)
     // Adjust the expected call count based on how you wrote your while/for loop.
     expect(prisma.user.create).toHaveBeenCalledTimes(5); 
+  });
+});
+
+describe('POST /api/auth/login Integration', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should return a Bearer JWT for valid credentials', async () => {
+    const passwordHash = await bcrypt.hash('Password123', 4);
+    const mockUser = {
+      id: 'user-login-123',
+      username: 'loginuser',
+      passwordHash,
+      code7: 'LOGIN12',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    vi.mocked(prisma.user.findUnique).mockResolvedValueOnce(mockUser);
+
+    const response = await request(app)
+      .post('/api/auth/login')
+      .send({ username: 'loginuser', password: 'Password123' });
+
+    expect(response.status).toBe(200);
+    expect(response.body.token).toMatch(/^Bearer .+\..+\..+$/);
+    expect(jwt.verify(response.body.token.slice(7), process.env.JWT_SECRET as string)).toMatchObject({
+      sub: mockUser.id,
+      username: mockUser.username,
+    });
+    expect(response.body.user).toEqual({
+      id: mockUser.id,
+      username: mockUser.username,
+      code7: mockUser.code7,
+      createdAt: mockUser.createdAt.toISOString(),
+    });
+  });
+
+  it('should return 401 when the username does not exist', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValueOnce(null);
+
+    const response = await request(app)
+      .post('/api/auth/login')
+      .send({ username: 'missinguser', password: 'Password123' });
+
+    expect(response.status).toBe(401);
+    expect(response.body.error).toBe('Invalid username or password.');
+  });
+
+  it('should return 401 when the password is incorrect', async () => {
+    const passwordHash = await bcrypt.hash('Password123', 4);
+    vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({
+      id: 'user-login-456',
+      username: 'loginuser',
+      passwordHash,
+      code7: 'LOGIN34',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    const response = await request(app)
+      .post('/api/auth/login')
+      .send({ username: 'loginuser', password: 'WrongPassword1' });
+
+    expect(response.status).toBe(401);
+    expect(response.body.error).toBe('Invalid username or password.');
+  });
+
+  it('should return 400 when the login payload is invalid', async () => {
+    const response = await request(app)
+      .post('/api/auth/login')
+      .send({ username: '', password: '' });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('Invalid login payload.');
+    expect(prisma.user.findUnique).not.toHaveBeenCalled();
   });
 });
