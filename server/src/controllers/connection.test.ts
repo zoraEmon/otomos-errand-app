@@ -11,6 +11,7 @@ vi.mock('../prisma/client', () => ({
     },
     connection: {
       findFirst: vi.fn(),
+      findMany: vi.fn(),
       findUnique: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
@@ -145,6 +146,65 @@ describe('POST /api/connections', () => {
         userBId: target.id,
       },
     });
+  });
+});
+
+describe('GET /api/connections', () => {
+  beforeEach(() => {
+    process.env.JWT_SECRET = JWT_SECRET;
+    vi.clearAllMocks();
+  });
+
+  it('should return accepted friends without exposing connection or password data', async () => {
+    vi.mocked(prisma.connection.findMany).mockResolvedValueOnce([
+      {
+        id: 'connection-accepted-1',
+        userAId: requester.id,
+        userBId: target.id,
+        status: 'accepted',
+        createdAt: new Date(),
+        userA: requester,
+        userB: target,
+      } as never,
+    ]);
+
+    const response = await request(app)
+      .get('/api/connections')
+      .set('Authorization', authHeader());
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual([
+      {
+        id: target.id,
+        username: target.username,
+        code7: target.code7,
+      },
+    ]);
+    expect(response.body[0]).not.toHaveProperty('passwordHash');
+    expect(prisma.connection.findMany).toHaveBeenCalledWith({
+      where: {
+        status: 'accepted',
+        OR: [
+          { userAId: requester.id },
+          { userBId: requester.id },
+        ],
+      },
+      include: {
+        userA: true,
+        userB: true,
+      },
+    });
+  });
+
+  it('should return an empty list when the requester has no accepted friends', async () => {
+    vi.mocked(prisma.connection.findMany).mockResolvedValueOnce([]);
+
+    const response = await request(app)
+      .get('/api/connections')
+      .set('Authorization', authHeader());
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual([]);
   });
 });
 
