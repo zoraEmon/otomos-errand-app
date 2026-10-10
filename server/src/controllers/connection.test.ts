@@ -11,7 +11,9 @@ vi.mock('../prisma/client', () => ({
     },
     connection: {
       findFirst: vi.fn(),
+      findUnique: vi.fn(),
       create: vi.fn(),
+      update: vi.fn(),
     },
   },
 }));
@@ -142,6 +144,91 @@ describe('POST /api/connections', () => {
         userAId: requester.id,
         userBId: target.id,
       },
+    });
+  });
+});
+
+describe('POST /api/connections/:id/accept', () => {
+  const connectionId = '11111111-1111-4111-8111-111111111111';
+
+  beforeEach(() => {
+    process.env.JWT_SECRET = JWT_SECRET;
+    vi.clearAllMocks();
+  });
+
+  it('should return 404 when the connection does not exist', async () => {
+    vi.mocked(prisma.connection.findUnique).mockResolvedValueOnce(null);
+
+    const response = await request(app)
+      .post(`/api/connections/${connectionId}/accept`)
+      .set('Authorization', authHeader());
+
+    expect(response.status).toBe(404);
+    expect(response.body.error).toBe('Connection not found.');
+  });
+
+  it('should return 403 when the requester is not the recipient', async () => {
+    vi.mocked(prisma.connection.findUnique).mockResolvedValueOnce({
+      id: connectionId,
+      userAId: requester.id,
+      userBId: target.id,
+      status: 'pending',
+      createdAt: new Date(),
+    });
+
+    const response = await request(app)
+      .post(`/api/connections/${connectionId}/accept`)
+      .set('Authorization', authHeader(requester.id));
+
+    expect(response.status).toBe(403);
+    expect(response.body.error).toBe('You cannot accept this connection.');
+    expect(prisma.connection.update).not.toHaveBeenCalled();
+  });
+
+  it('should return 400 when the connection is already accepted', async () => {
+    vi.mocked(prisma.connection.findUnique).mockResolvedValueOnce({
+      id: connectionId,
+      userAId: requester.id,
+      userBId: target.id,
+      status: 'accepted',
+      createdAt: new Date(),
+    });
+
+    const response = await request(app)
+      .post(`/api/connections/${connectionId}/accept`)
+      .set('Authorization', authHeader(target.id));
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('Connection is already accepted.');
+    expect(prisma.connection.update).not.toHaveBeenCalled();
+  });
+
+  it('should accept a pending connection for its recipient', async () => {
+    const pendingConnection = {
+      id: connectionId,
+      userAId: requester.id,
+      userBId: target.id,
+      status: 'pending',
+      createdAt: new Date(),
+    };
+    const acceptedConnection = { ...pendingConnection, status: 'accepted' };
+    vi.mocked(prisma.connection.findUnique).mockResolvedValueOnce(pendingConnection);
+    vi.mocked(prisma.connection.update).mockResolvedValueOnce(acceptedConnection);
+
+    const response = await request(app)
+      .post(`/api/connections/${connectionId}/accept`)
+      .set('Authorization', authHeader(target.id));
+
+    expect(response.status).toBe(200);
+    expect(response.body.connection).toMatchObject({
+      id: connectionId,
+      status: 'accepted',
+      userAId: requester.id,
+      userBId: target.id,
+    });
+    expect(prisma.connection.update).toHaveBeenCalledWith({
+      where: { id: connectionId },
+      data: { status: 'accepted' },
     });
   });
 });
