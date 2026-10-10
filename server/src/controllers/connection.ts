@@ -60,6 +60,39 @@ export async function createConnection(req: Request, res: Response) {
   }
 }
 
+export async function listConnections(req: Request, res: Response) {
+  try {
+    const requesterId = (req as AuthenticatedRequest).auth.userId;
+    const connections = await prisma.connection.findMany({
+      where: {
+        status: 'accepted',
+        OR: [
+          { userAId: requesterId },
+          { userBId: requesterId },
+        ],
+      },
+      include: {
+        userA: true,
+        userB: true,
+      },
+    });
+
+    const friends = connections.map((connection) => {
+      const friend = connection.userAId === requesterId ? connection.userB : connection.userA;
+      return {
+        id: friend.id,
+        username: friend.username,
+        code7: friend.code7,
+      };
+    });
+
+    return res.status(200).json(friends);
+  } catch (error) {
+    console.error('List connections error:', error);
+    return res.status(500).json({ error: 'Internal server error.' });
+  }
+}
+
 export async function acceptConnection(req: Request, res: Response) {
   try {
     const parsedParams = UuidParamSchema.safeParse(req.params);
