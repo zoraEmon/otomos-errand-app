@@ -18,3 +18,20 @@ services:
       # Optional: Mount src directories for live-reloading with tsx
       - ./server/src:/usr/src/app/server/src
       - ./shared/contracts:/usr/src/app/shared/contracts
+
+  otomos-frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: otomos_frontend
+    depends_on:
+      - otomos-api
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:3001/api
+    volumes:
+      - ./frontend:/usr/src/app/frontend
+      - ./shared:/usr/src/app/shared
+      - /usr/src/app/frontend/node_modules
+      - /usr/src/app/shared/node_modules
