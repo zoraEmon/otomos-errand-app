@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 import express, { NextFunction, Request, Response } from 'express';
 import authRouter from './routes/auth';
 import connectionRouter from './routes/connection';
+import errandRouter from './routes/errand';
 
 dotenv.config();
 
@@ -24,6 +25,7 @@ app.get('/api/health', (_req: Request, res: Response) => {
 
 app.use('/api/auth', authRouter);
 app.use('/api/connections', connectionRouter);
+app.use('/api/errands', errandRouter);
 
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   console.error(`[Error]: ${err.message}`);

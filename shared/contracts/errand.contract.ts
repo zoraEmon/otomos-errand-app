@@ -9,13 +9,16 @@ export const ErrandStatusEnum = z.enum([
 ]);
 
 export const CreateErrandItemSchema = z.object({
-    itemName: z.string().min(1, 'Item name is required.'),
-    quantity: z.number().int().positive().default(1),
-})
+  itemName: z.string().trim().min(1, 'Item name is required.').max(120, 'Item name must be 120 characters or fewer.'),
+  quantity: z.number().int().positive().default(1),
+  notes: z.string().optional(),
+});
 
 export const CreateErrandSchema = z.object({
   runnerId: z.string().uuid('Invalid Runner ID'),
   items: z.array(CreateErrandItemSchema).min(1, 'At least one item is required'),
+  instructions: z.string().optional(),
+  notes: z.string().optional(),
 });
 
 export const UpdateErrandStatusSchema = z.object({
@@ -36,8 +39,8 @@ export interface ErrandItemDTO {
   errandId: string;
   itemName: string;
   quantity: number;
+  notes?: string | null;
   isBought: boolean;
-  updatedAt: string;
 }
 
 export interface ErrandDTO {
@@ -45,6 +48,7 @@ export interface ErrandDTO {
   commanderId: string;
   runnerId: string;
   status: ErrandStatus;
+  instructions?: string | null;
   createdAt: string;
   updatedAt: string;
   items: ErrandItemDTO[];
