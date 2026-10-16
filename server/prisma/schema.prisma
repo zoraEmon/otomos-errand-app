@@ -40,6 +40,7 @@ model Errand {
   commanderId String
   runnerId    String
   status      String       @default("pending_acceptance")
+  instructions String?
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
@@ -53,6 +54,7 @@ model ErrandItem {
   errandId  String
   itemName  String
   quantity  Int     @default(1)
+  notes     String?
   isBought  Boolean @default(false)
 
   errand    Errand  @relation(fields: [errandId], references: [id], onDelete: Cascade)
