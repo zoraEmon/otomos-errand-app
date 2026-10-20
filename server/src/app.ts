@@ -9,7 +9,14 @@ dotenv.config();
 
 const app = express();
 
-app.use(cors());
+const configuredOrigins = process.env.CORS_ORIGIN
+  ?.split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean)
+
+app.use(cors({
+  origin: configuredOrigins?.length ? configuredOrigins : true,
+}))
 app.use(express.json());
 
 app.get('/api/health', (_req: Request, res: Response) => {
