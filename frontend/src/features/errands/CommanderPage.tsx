@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CreateErrandInput } from '../../../../shared/contracts/errand.contract'
 import { Avatar, Button, Card, IconButton } from '../../components/atoms'
+import { AppNavigation } from '../../components/organisms/AppNavigation'
 import { ApiError, createErrand, getConnectedRunners, type ConnectedRunner } from '../../lib/apiClient'
 
 type DraftItem = {
@@ -12,7 +13,15 @@ type DraftItem = {
 
 const newItem = (id: number): DraftItem => ({ id, itemName: '', quantity: 1, notes: '' })
 
-export function CommanderPage() {
+type CommanderPageProps = {
+  initialRunnerId?: string
+  onBack?: () => void
+  onCreated?: (errandId: string) => void
+  onNavigate?: (destination: 'home' | 'errands' | 'invitations') => void
+  notificationCount?: number
+}
+
+export function CommanderPage({ initialRunnerId, notificationCount = 0, onBack, onCreated, onNavigate }: CommanderPageProps) {
   const [runners, setRunners] = useState<ConnectedRunner[]>([])
   const [selectedRunnerId, setSelectedRunnerId] = useState('')
   const [items, setItems] = useState<DraftItem[]>([newItem(1)])
@@ -30,7 +39,9 @@ export function CommanderPage() {
       .then((connectedRunners) => {
         if (!active) return
         setRunners(connectedRunners)
-        setSelectedRunnerId(connectedRunners[0]?.id ?? '')
+        setSelectedRunnerId(initialRunnerId && connectedRunners.some((runner) => runner.id === initialRunnerId)
+          ? initialRunnerId
+          : connectedRunners[0]?.id ?? '')
       })
       .catch(() => {
         if (active) setError('Unable to load your connected runners. Please try again.')
@@ -39,7 +50,7 @@ export function CommanderPage() {
         if (active) setLoadingRunners(false)
       })
     return () => { active = false }
-  }, [])
+  }, [initialRunnerId])
 
   const selectedRunner = runners.find((runner) => runner.id === selectedRunnerId)
   const totalItems = items.reduce((total, item) => total + item.quantity, 0)
@@ -87,8 +98,8 @@ export function CommanderPage() {
       setSuccess(`Errand dispatched to ${selectedRunner?.username ?? 'your runner'}.`)
       setItems([newItem(nextItemId.current++)])
       setInstructions('')
-      // This is the tracking destination until a dedicated detail route is available.
       window.history.replaceState({}, '', `/errands/${response.errand.id}`)
+      onCreated?.(response.errand.id)
     } catch (caughtError) {
       setError(caughtError instanceof ApiError ? caughtError.message : 'Unable to dispatch this errand. Please try again.')
     } finally {
@@ -99,7 +110,7 @@ export function CommanderPage() {
   return (
     <main className="commander-page">
       <header className="commander-header">
-        <IconButton icon="←" label="Go back" onClick={() => window.history.back()} />
+        <IconButton icon="←" label="Go back" onClick={onBack ?? (() => window.history.back())} />
         <div>
           <span className="commander-header__eyebrow">COMMANDER</span>
           <h1>Create Errand</h1>
@@ -214,6 +225,7 @@ export function CommanderPage() {
           {submitting ? <><span className="loading-spinner" aria-hidden="true" /> Dispatching…</> : <>⚡ Dispatch command</>}
         </Button>
       </div>
+      {onNavigate && <AppNavigation active="errands" notificationCount={notificationCount} onNavigate={onNavigate} />}
     </main>
   )
 }

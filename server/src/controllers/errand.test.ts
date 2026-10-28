@@ -14,6 +14,12 @@ vi.mock('../prisma/client', () => ({
     },
     errand: {
       create: vi.fn(),
+      findUnique: vi.fn(),
+      update: vi.fn(),
+    },
+    errandItem: {
+      findUnique: vi.fn(),
+      update: vi.fn(),
     },
   },
 }));
@@ -37,6 +43,185 @@ describe('POST /api/errands', () => {
   beforeEach(() => {
     process.env.JWT_SECRET = JWT_SECRET;
     vi.clearAllMocks();
+  });
+
+  describe('PATCH /api/errands/:id/items/:itemId', () => {
+    const errandId = '33333333-3333-4333-8333-333333333333';
+    const itemId = '44444444-4444-4444-8444-444444444444';
+    const activeErrand = { id: errandId, commanderId, runnerId, status: 'active' };
+    const item = { id: itemId, errandId, itemName: 'Milk', quantity: 1, isBought: false, errand: activeErrand };
+
+    beforeEach(() => {
+      process.env.JWT_SECRET = JWT_SECRET;
+      vi.clearAllMocks();
+    });
+
+    it('requires authentication', async () => {
+      const response = await request(app)
+        .patch(`/api/errands/${errandId}/items/${itemId}`)
+        .send({ isBought: true });
+
+      expect(response.status).toBe(401);
+    });
+
+    it('allows only the assigned runner while active', async () => {
+      vi.mocked(prisma.errandItem.findUnique).mockResolvedValueOnce(item as never);
+      vi.mocked(prisma.errandItem.update).mockResolvedValueOnce({ ...item, isBought: true } as never);
+
+      const response = await request(app)
+        .patch(`/api/errands/${errandId}/items/${itemId}`)
+        .set('Authorization', authHeader(runnerId))
+        .send({ isBought: true });
+
+      expect(response.status).toBe(200);
+      expect(response.body.item.isBought).toBe(true);
+      expect(prisma.errandItem.update).toHaveBeenCalledWith({
+        where: { id: itemId },
+        data: { isBought: true },
+      });
+    });
+
+    it('rejects the commander', async () => {
+      vi.mocked(prisma.errandItem.findUnique).mockResolvedValueOnce(item as never);
+
+      const response = await request(app)
+        .patch(`/api/errands/${errandId}/items/${itemId}`)
+        .set('Authorization', authHeader(commanderId))
+        .send({ isBought: true });
+
+      expect(response.status).toBe(403);
+      expect(prisma.errandItem.update).not.toHaveBeenCalled();
+    });
+
+    it('rejects an item that belongs to another errand', async () => {
+      vi.mocked(prisma.errandItem.findUnique).mockResolvedValueOnce({
+        ...item,
+        errand: { ...activeErrand, id: '55555555-5555-4555-8555-555555555555' },
+      } as never);
+
+      const response = await request(app)
+        .patch(`/api/errands/${errandId}/items/${itemId}`)
+        .set('Authorization', authHeader(runnerId))
+        .send({ isBought: true });
+
+      expect(response.status).toBe(404);
+      expect(prisma.errandItem.update).not.toHaveBeenCalled();
+    });
+
+    it('rejects malformed errand and item identifiers', async () => {
+      const response = await request(app)
+        .patch('/api/errands/not-an-id/items/not-an-id')
+        .set('Authorization', authHeader(runnerId))
+        .send({ isBought: true });
+
+      expect(response.status).toBe(404);
+      expect(prisma.errandItem.findUnique).not.toHaveBeenCalled();
+    });
+
+    it.each(['pending_acceptance', 'closed'])('rejects updates when errand is %s', async (status) => {
+      vi.mocked(prisma.errandItem.findUnique).mockResolvedValueOnce({
+        ...item,
+        errand: { ...activeErrand, status },
+      } as never);
+
+      const response = await request(app)
+        .patch(`/api/errands/${errandId}/items/${itemId}`)
+        .set('Authorization', authHeader(runnerId))
+        .send({ isBought: true });
+
+      expect(response.status).toBe(400);
+      expect(prisma.errandItem.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('PATCH /api/errands/:id/status', () => {
+    const errandId = '33333333-3333-4333-8333-333333333333';
+
+    beforeEach(() => {
+      process.env.JWT_SECRET = JWT_SECRET;
+      vi.clearAllMocks();
+    });
+
+    it('allows the runner lifecycle from pending to active to completed', async () => {
+      const pending = { id: errandId, commanderId, runnerId, status: 'pending_acceptance' };
+      const active = { ...pending, status: 'active' };
+      const completed = { ...active, status: 'completed_by_runner' };
+      vi.mocked(prisma.errand.findUnique)
+        .mockResolvedValueOnce(pending as never)
+        .mockResolvedValueOnce(active as never);
+      vi.mocked(prisma.errand.update)
+        .mockResolvedValueOnce(active as never)
+        .mockResolvedValueOnce(completed as never);
+
+      const accepted = await request(app)
+        .patch(`/api/errands/${errandId}/status`)
+        .set('Authorization', authHeader(runnerId))
+        .send({ status: 'active' });
+      const finished = await request(app)
+        .patch(`/api/errands/${errandId}/status`)
+        .set('Authorization', authHeader(runnerId))
+        .send({ status: 'completed_by_runner' });
+
+      expect(accepted.status).toBe(200);
+      expect(finished.status).toBe(200);
+    });
+
+    it('allows the commander to close a completed errand', async () => {
+      const completed = { id: errandId, commanderId, runnerId, status: 'completed_by_runner' };
+      vi.mocked(prisma.errand.findUnique).mockResolvedValueOnce(completed as never);
+      vi.mocked(prisma.errand.update).mockResolvedValueOnce({ ...completed, status: 'closed' } as never);
+
+      const response = await request(app)
+        .patch(`/api/errands/${errandId}/status`)
+        .set('Authorization', authHeader(commanderId))
+        .send({ status: 'closed' });
+
+      expect(response.status).toBe(200);
+    });
+
+    it('rejects invalid lifecycle jumps', async () => {
+      vi.mocked(prisma.errand.findUnique).mockResolvedValueOnce({
+        id: errandId,
+        commanderId,
+        runnerId,
+        status: 'pending_acceptance',
+      } as never);
+
+      const response = await request(app)
+        .patch(`/api/errands/${errandId}/status`)
+        .set('Authorization', authHeader(runnerId))
+        .send({ status: 'completed_by_runner' });
+
+      expect(response.status).toBe(400);
+      expect(prisma.errand.update).not.toHaveBeenCalled();
+    });
+
+    it('requires the assigned runner or commander for lifecycle transitions', async () => {
+      vi.mocked(prisma.errand.findUnique).mockResolvedValueOnce({
+        id: errandId,
+        commanderId,
+        runnerId,
+        status: 'active',
+      } as never);
+
+      const response = await request(app)
+        .patch(`/api/errands/${errandId}/status`)
+        .set('Authorization', authHeader(commanderId))
+        .send({ status: 'completed_by_runner' });
+
+      expect(response.status).toBe(403);
+      expect(prisma.errand.update).not.toHaveBeenCalled();
+    });
+
+    it('rejects malformed status route parameters', async () => {
+      const response = await request(app)
+        .patch('/api/errands/not-an-id/status')
+        .set('Authorization', authHeader(runnerId))
+        .send({ status: 'active' });
+
+      expect(response.status).toBe(404);
+      expect(prisma.errand.findUnique).not.toHaveBeenCalled();
+    });
   });
 
   it('requires authentication', async () => {

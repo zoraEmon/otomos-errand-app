@@ -1,7 +1,9 @@
 import type { AuthResponseData, LoginInput, SignupInput } from '../../../shared/contracts/auth.contract'
-import { getAuthToken, saveAuthToken } from './authStorage'
+import type { CreateErrandInput } from '../../../shared/contracts/errand.contract'
+import type { ErrandDTO } from '../../../shared/contracts/errand.contract'
+import { getAuthToken, saveAuthToken, saveAuthUser } from './authStorage'
 
-const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api'
+const API_BASE_URL = import.meta.env.VITE_API_URL ?? '/api'
 
 type ApiErrorBody = {
   error?: string
@@ -48,6 +50,7 @@ export async function signup(input: SignupInput): Promise<AuthResponseData> {
     method: 'POST',
   })
   saveAuthToken(response.token)
+  saveAuthUser(response.user)
   return response
 }
 
@@ -57,7 +60,99 @@ export async function login(input: LoginInput): Promise<AuthResponseData> {
     method: 'POST',
   })
   saveAuthToken(response.token)
+  saveAuthUser(response.user)
   return response
+}
+
+export type ConnectedRunner = {
+  id: string
+  username: string
+  code7: string
+}
+
+export type PendingConnectionRequest = {
+  id: string
+  sender: {
+    id: string
+    username: string
+    code7: string
+  }
+  createdAt: string
+}
+
+export async function getPendingConnections(): Promise<PendingConnectionRequest[]> {
+  return request<PendingConnectionRequest[]>('/connections/pending')
+}
+
+export async function acceptConnectionRequest(id: string): Promise<void> {
+  await request(`/connections/${id}/accept`, { method: 'POST' })
+}
+
+export async function rejectConnectionRequest(id: string): Promise<void> {
+  await request(`/connections/${id}/reject`, { method: 'POST' })
+}
+
+export type CreateErrandResponse = {
+  errand: {
+    id: string
+    status: string
+  }
+}
+
+export type ErrandSummary = {
+  id: string
+  role: 'commander' | 'runner'
+  status: string
+  itemCount: number
+  otherUser: { id: string; username: string; code7: string }
+}
+
+export async function getErrands(): Promise<ErrandSummary[]> {
+  return request<ErrandSummary[]>('/errands')
+}
+
+export async function acceptErrandRequest(id: string): Promise<void> {
+  await request(`/errands/${id}/accept`, { method: 'POST' })
+}
+
+export async function rejectErrandRequest(id: string): Promise<void> {
+  await request(`/errands/${id}/reject`, { method: 'POST' })
+}
+
+export async function getConnectedRunners(): Promise<ConnectedRunner[]> {
+  return request<ConnectedRunner[]>('/connections')
+}
+
+export async function connectWithFriend(targetCode7: string): Promise<void> {
+  await request('/connections', {
+    body: JSON.stringify({ targetCode7 }),
+    method: 'POST',
+  })
+}
+
+export async function createErrand(input: CreateErrandInput): Promise<CreateErrandResponse> {
+  return request<CreateErrandResponse>('/errands', {
+    body: JSON.stringify(input),
+    method: 'POST',
+  })
+}
+
+export async function getErrand(id: string): Promise<{ errand: ErrandDTO }> {
+  return request<{ errand: ErrandDTO }>(`/errands/${id}`)
+}
+
+export async function updateErrandItem(errandId: string, itemId: string, isBought: boolean): Promise<void> {
+  await request(`/errands/${errandId}/items/${itemId}`, {
+    body: JSON.stringify({ isBought }),
+    method: 'PATCH',
+  })
+}
+
+export async function updateErrandStatus(errandId: string, status: ErrandDTO['status']): Promise<{ errand: ErrandDTO }> {
+  return request<{ errand: ErrandDTO }>(`/errands/${errandId}/status`, {
+    body: JSON.stringify({ status }),
+    method: 'PATCH',
+  })
 }
 
 export { request as apiRequest }

@@ -13,9 +13,9 @@ type BottomNavigationProps = {
 }
 
 const defaultItems: NavigationItem[] = [
-  { icon: '♧', label: 'Friends' },
+  { icon: '⌂', label: 'Home' },
   { icon: '☑', label: 'Errands' },
-  { icon: '◎', label: 'Profile' },
+  { icon: '♧', label: 'Invitations' },
 ]
 
 export function BottomNavigation({ items = defaultItems }: BottomNavigationProps) {

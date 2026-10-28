@@ -15,6 +15,7 @@ vi.mock('../prisma/client', () => ({
       findUnique: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
+      delete: vi.fn(),
     },
   },
 }));
@@ -214,6 +215,72 @@ describe('POST /api/connections/:id/accept', () => {
   beforeEach(() => {
     process.env.JWT_SECRET = JWT_SECRET;
     vi.clearAllMocks();
+  });
+
+  describe('GET /api/connections/pending', () => {
+    beforeEach(() => {
+      process.env.JWT_SECRET = JWT_SECRET;
+      vi.clearAllMocks();
+    });
+
+    it('should return incoming pending requests with sender details', async () => {
+      const createdAt = new Date('2026-10-20T18:00:00.000Z');
+      vi.mocked(prisma.connection.findMany).mockResolvedValueOnce([{
+        id: 'connection-pending-1',
+        userAId: requester.id,
+        userBId: target.id,
+        status: 'pending',
+        createdAt,
+        userA: requester,
+      } as never]);
+
+      const response = await request(app)
+        .get('/api/connections/pending')
+        .set('Authorization', authHeader(target.id));
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual([{
+        id: 'connection-pending-1',
+        sender: {
+          id: requester.id,
+          username: requester.username,
+          code7: requester.code7,
+        },
+        createdAt: createdAt.toISOString(),
+      }]);
+      expect(prisma.connection.findMany).toHaveBeenCalledWith({
+        where: { userBId: target.id, status: 'pending' },
+        include: { userA: true },
+        orderBy: { createdAt: 'desc' },
+      });
+    });
+  });
+
+  describe('POST /api/connections/:id/reject', () => {
+    const connectionId = '22222222-2222-4222-8222-222222222222';
+
+    beforeEach(() => {
+      process.env.JWT_SECRET = JWT_SECRET;
+      vi.clearAllMocks();
+    });
+
+    it('should allow either participant to reject a pending request', async () => {
+      vi.mocked(prisma.connection.findUnique).mockResolvedValueOnce({
+        id: connectionId,
+        userAId: requester.id,
+        userBId: target.id,
+        status: 'pending',
+        createdAt: new Date(),
+      });
+      vi.mocked(prisma.connection.delete).mockResolvedValueOnce({ id: connectionId } as never);
+
+      const response = await request(app)
+        .post(`/api/connections/${connectionId}/reject`)
+        .set('Authorization', authHeader(target.id));
+
+      expect(response.status).toBe(204);
+      expect(prisma.connection.delete).toHaveBeenCalledWith({ where: { id: connectionId } });
+    });
   });
 
   it('should return 404 when the connection does not exist', async () => {

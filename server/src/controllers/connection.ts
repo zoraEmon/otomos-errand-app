@@ -93,6 +93,30 @@ export async function listConnections(req: Request, res: Response) {
   }
 }
 
+export async function listPendingConnections(req: Request, res: Response) {
+  try {
+    const requesterId = (req as AuthenticatedRequest).auth.userId;
+    const pending = await prisma.connection.findMany({
+      where: { userBId: requesterId, status: 'pending' },
+      include: { userA: true },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return res.status(200).json(pending.map((connection) => ({
+      id: connection.id,
+      sender: {
+        id: connection.userA.id,
+        username: connection.userA.username,
+        code7: connection.userA.code7,
+      },
+      createdAt: connection.createdAt,
+    })));
+  } catch (error) {
+    console.error('List pending connections error:', error);
+    return res.status(500).json({ error: 'Internal server error.' });
+  }
+}
+
 export async function acceptConnection(req: Request, res: Response) {
   try {
     const parsedParams = UuidParamSchema.safeParse(req.params);
@@ -129,6 +153,38 @@ export async function acceptConnection(req: Request, res: Response) {
     return res.status(200).json({ connection: updatedConnection });
   } catch (error) {
     console.error('Accept connection error:', error);
+    return res.status(500).json({ error: 'Internal server error.' });
+  }
+}
+
+export async function rejectConnection(req: Request, res: Response) {
+  try {
+    const parsedParams = UuidParamSchema.safeParse(req.params);
+    if (!parsedParams.success) {
+      return res.status(404).json({ error: 'Connection not found.' });
+    }
+
+    const requesterId = (req as AuthenticatedRequest).auth.userId;
+    const connection = await prisma.connection.findUnique({
+      where: { id: parsedParams.data.id },
+    });
+
+    if (!connection) {
+      return res.status(404).json({ error: 'Connection not found.' });
+    }
+
+    if (connection.userAId !== requesterId && connection.userBId !== requesterId) {
+      return res.status(403).json({ error: 'You cannot reject this connection.' });
+    }
+
+    if (connection.status !== 'pending') {
+      return res.status(400).json({ error: 'Connection is not pending.' });
+    }
+
+    await prisma.connection.delete({ where: { id: connection.id } });
+    return res.status(204).send();
+  } catch (error) {
+    console.error('Reject connection error:', error);
     return res.status(500).json({ error: 'Internal server error.' });
   }
 }
